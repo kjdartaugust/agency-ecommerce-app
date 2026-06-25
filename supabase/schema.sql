@@ -158,34 +158,57 @@ alter table blog_posts enable row level security;
 alter table orders enable row level security;
 alter table inquiries enable row level security;
 
+-- Policies are dropped first so this file is safe to re-run (Postgres has no
+-- "create policy if not exists").
+
 -- Public read for catalog & marketing content
+drop policy if exists "public read" on categories;
 create policy "public read" on categories for select using (true);
+drop policy if exists "public read" on products;
 create policy "public read" on products for select using (true);
+drop policy if exists "public read" on reviews;
 create policy "public read" on reviews for select using (true);
+drop policy if exists "public read" on projects;
 create policy "public read" on projects for select using (true);
+drop policy if exists "public read" on team_members;
 create policy "public read" on team_members for select using (true);
+drop policy if exists "public read" on service_packages;
 create policy "public read" on service_packages for select using (true);
+drop policy if exists "public read" on blog_posts;
 create policy "public read" on blog_posts for select using (true);
 
 -- Admin writes catalog & content
+drop policy if exists "admin write" on categories;
 create policy "admin write" on categories for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin write" on products;
 create policy "admin write" on products for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin write" on projects;
 create policy "admin write" on projects for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin write" on team_members;
 create policy "admin write" on team_members for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin write" on service_packages;
 create policy "admin write" on service_packages for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin write" on blog_posts;
 create policy "admin write" on blog_posts for all using (is_admin()) with check (is_admin());
 
 -- Reviews: any authenticated user can write their own
+drop policy if exists "auth insert review" on reviews;
 create policy "auth insert review" on reviews for insert with check (auth.uid() = user_id);
 
 -- Profiles: self read/update; admins read all
+drop policy if exists "self read profile" on profiles;
 create policy "self read profile" on profiles for select using (auth.uid() = id or is_admin());
+drop policy if exists "self update profile" on profiles;
 create policy "self update profile" on profiles for update using (auth.uid() = id);
 
 -- Orders: customers see their own; admins see all. Inserts via service role (webhook) bypass RLS.
+drop policy if exists "own orders" on orders;
 create policy "own orders" on orders for select using (auth.uid() = user_id or is_admin());
+drop policy if exists "admin update orders" on orders;
 create policy "admin update orders" on orders for update using (is_admin()) with check (is_admin());
 
 -- Inquiries: anyone may submit; only admins read.
+drop policy if exists "public insert inquiry" on inquiries;
 create policy "public insert inquiry" on inquiries for insert with check (true);
+drop policy if exists "admin read inquiry" on inquiries;
 create policy "admin read inquiry" on inquiries for select using (is_admin());
