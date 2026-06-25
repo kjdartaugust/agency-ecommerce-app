@@ -1,0 +1,35 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm run dev      # local dev server (http://localhost:3000)
+npm run build    # production build (run before deploy to catch type errors)
+npm run start    # serve the production build
+npm run lint     # next/eslint
+```
+
+No test runner is configured. Env vars are documented in `.env.example`; copy to `.env.local`.
+
+## Architecture
+
+Next.js 14 **App Router** + TypeScript, Tailwind (CSS-variable theming, class-based dark mode), Supabase (Postgres + Auth), and Stripe (test mode) for checkout. Path alias `@/*` → `src/*`.
+
+**Graceful-degradation data layer is the central design choice.** Supabase and Stripe are optional at runtime:
+- `src/lib/env.ts` exposes `isSupabaseConfigured` / `isStripeConfigured`.
+- All Supabase client factories (`src/lib/supabase/{client,server,admin}.ts`) return `null` when env vars are absent.
+- `src/lib/data.ts` is the single data-access layer: it queries Supabase when configured, otherwise falls back to in-memory seed data in `src/lib/seed.ts`. **UI components must read through `data.ts`, never call Supabase directly**, so the app builds, renders, and demos with zero external services.
+
+**Supabase clients** follow the `@supabase/ssr` split: `client.ts` (browser components), `server.ts` (server components/route handlers, cookie-based), `admin.ts` (service-role, server-only — webhooks/admin mutations).
+
+**E-commerce flow:** cart state is client-side (`zustand`, persisted to localStorage) in `src/lib/store.ts`. Checkout posts the cart to a route handler that creates a Stripe Checkout Session; the Stripe webhook (service-role client) writes the order. Orders/reviews/inquiries live in Supabase with RLS.
+
+**Database:** schema, RLS policies, and seed SQL live in `supabase/` and mirror the types in `src/lib/types.ts`. Keep types, `seed.ts`, and the SQL in sync when changing the data model.
+
+## Conventions
+
+- Server Components by default; add `"use client"` only for interactivity (cart, theme toggle, forms).
+- Money is stored and passed as integer **cents**; format only at render via `formatPrice` in `src/lib/utils.ts`.
+- Use the `cn()` helper for conditional classes.
