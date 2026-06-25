@@ -11,6 +11,9 @@ import { LinkButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Your orders" };
 
+// Reads the signed-in user from cookies — must run per request.
+export const dynamic = "force-dynamic";
+
 const statusVariant = {
   pending: "outline",
   paid: "default",

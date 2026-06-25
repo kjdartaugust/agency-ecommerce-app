@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { LayoutDashboard, Package, ShoppingCart, ArrowLeft } from "lucide-react";
 import { getAdminContext } from "@/lib/auth";
 
+// Admin reads per-request auth (cookies) — never statically generate.
+export const dynamic = "force-dynamic";
+
 const nav = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/products", label: "Products", icon: Package },
