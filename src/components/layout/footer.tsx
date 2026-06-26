@@ -25,6 +25,7 @@ const groups = [
       { href: "/contact", label: "Contact" },
       { href: "/login", label: "Sign in" },
       { href: "/admin", label: "Admin" },
+      { href: "/market", label: "Also built: Nexus Market →" },
     ],
   },
 ];

@@ -15,7 +15,6 @@ const links = [
   { href: "/shop", label: "Shop" },
   { href: "/blog", label: "Journal" },
   { href: "/about", label: "Studio" },
-  { href: "/market", label: "Marketplace" },
 ];
 
 export function Navbar() {
