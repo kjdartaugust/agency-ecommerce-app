@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CartButton } from "@/components/shop/cart-button";
@@ -60,6 +60,13 @@ export function Navbar() {
 
         <div className="flex items-center gap-1">
           <ThemeToggle />
+          <Link
+            href="/account"
+            aria-label="Account"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-secondary"
+          >
+            <User className="h-5 w-5" />
+          </Link>
           <CartButton />
           <LinkButton href="/contact" size="sm" className="ml-1 hidden sm:inline-flex">
             Start a project
