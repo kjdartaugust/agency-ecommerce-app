@@ -31,6 +31,9 @@ export function Navbar() {
 
   useEffect(() => setOpen(false), [pathname]);
 
+  // Nexus Market (/market/*) ships its own navbar — hide the Lumen one there.
+  if (pathname.startsWith("/market")) return null;
+
   return (
     <header
       className={cn(

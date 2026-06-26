@@ -72,3 +72,33 @@ html {
 ::selection {
   background: hsl(var(--primary) / 0.25);
 }
+
+/* ---------------------------------------------------------------------------
+   Nexus Market — scoped brand theme (navy / coral / white). Lives under the
+   .nexus wrapper so it never affects the existing Lumen pages or theme.
+--------------------------------------------------------------------------- */
+.nexus {
+  --navy: #0f172a;
+  --coral: #ff6b47;
+  --grey: #f8fafc;
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  background: var(--grey);
+  color: var(--navy);
+}
+.nexus ::selection {
+  background: rgba(255, 107, 71, 0.22);
+}
+.nexus-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.nexus-no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+@keyframes nexus-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+.nexus-float {
+  animation: nexus-float 6s ease-in-out infinite;
+}

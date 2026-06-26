@@ -71,6 +71,24 @@ integer cents; cart state is client-side Zustand.
 2. Add the env vars from `.env.example` (optional — deploys fine without them).
 3. Set the Stripe webhook endpoint to `https://your-domain/api/webhooks/stripe`.
 
+## Nexus Market (`/market`)
+
+A second, fully-designed **two-sided marketplace** experience lives under `/market`, layered
+additively on top of Lumen without touching any existing route. It has its own navy/coral brand,
+Plus Jakarta Sans typography, and Framer Motion throughout:
+
+- Homepage with a unified services+products search, trending categories, featured sellers/products, and animated stat counters
+- **Services marketplace** — filterable grid, service detail with Basic/Standard/Premium tiers, seller profiles, reviews
+- **Products marketplace** — grid + detail with gallery, seller attribution, related items
+- Unified **search results** across services and products
+- **Seller dashboard** (Recharts earnings/traffic, active orders, listings manager, payouts, profile editor)
+- **Buyer dashboard** (order tracking, purchase history, saved items, messages)
+- **Multi-step checkout** (cart → address → payment → confirmation) with a progress bar
+- **Admin panel** (revenue analytics, user management, listing moderation) and a Become-a-Seller flow
+
+Marketplace content is mock data in `src/lib/nexus/` (graceful-degradation friendly); product data
+is shared with Lumen via `src/lib/data.ts`. Recharts powers the dashboards.
+
 ## Tech stack
 
-Next.js 14 · TypeScript · Tailwind CSS · Supabase · Stripe · Zustand · Framer Motion · Lucide · Zod
+Next.js 14 · TypeScript · Tailwind CSS · Supabase · Stripe · Zustand · Framer Motion · Recharts · Lucide · Zod
