@@ -71,6 +71,18 @@ integer cents; cart state is client-side Zustand.
 2. Add the env vars from `.env.example` (optional — deploys fine without them).
 3. Set the Stripe webhook endpoint to `https://your-domain/api/webhooks/stripe`.
 
+## Keeping Supabase awake (free tier)
+
+Supabase pauses free-tier projects after 7 days of inactivity. A **Vercel Cron**
+(`vercel.json`) pings `/api/keep-alive` daily at 06:00 UTC, running a lightweight read so the
+project never crosses that threshold — no Pro upgrade needed. Notes:
+
+- Cron only fires on the **production** deployment (Hobby allows one run/day, which is plenty).
+- Optional: set a `CRON_SECRET` env var in Vercel to lock the endpoint to Vercel's own cron
+  caller — the route requires `Authorization: Bearer <CRON_SECRET>` when it's set, and stays
+  open when it isn't.
+- If Supabase isn't configured, the endpoint no-ops and returns OK.
+
 ## Nexus Market (`/market`)
 
 A second, fully-designed **two-sided marketplace** experience lives under `/market`, layered
