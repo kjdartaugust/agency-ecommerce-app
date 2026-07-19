@@ -3,6 +3,7 @@ import { z } from "zod";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { persistRouting } from "@/lib/fulfillment-store";
 import { env } from "@/lib/env";
 
 const itemSchema = z.object({
@@ -36,6 +37,18 @@ export async function POST(req: Request) {
   const { items, email, shipping_name, shipping_address } = parsed.data;
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
+  // The cart posts `productId`, but a stored order line is an `OrderItem` with
+  // `product_id`. Normalize once here so the demo and Stripe paths persist the
+  // identical shape — they previously diverged, leaving demo orders with a
+  // `productId` key that nothing downstream reads.
+  const orderItems = items.map((i) => ({
+    product_id: i.productId,
+    name: i.name,
+    price: i.price,
+    quantity: i.quantity,
+    image_url: i.image_url,
+  }));
+
   const supabase = createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
 
@@ -51,13 +64,18 @@ export async function POST(req: Request) {
           email,
           status: "paid",
           total,
-          items,
+          items: orderItems,
           shipping_name,
           shipping_address,
         })
-        .select("id")
+        .select()
         .single();
-      if (data) orderId = data.id;
+      if (data) {
+        orderId = data.id;
+        // Demo orders route exactly like paid ones, so the admin fulfilment
+        // view is populated without Stripe configured.
+        await persistRouting(admin, data);
+      }
     }
     return NextResponse.json({
       url: `${env.siteUrl}/checkout/success?demo=1&order=${orderId}`,
@@ -87,15 +105,7 @@ export async function POST(req: Request) {
       user_id: user?.id ?? "",
       shipping_name,
       shipping_address,
-      items: JSON.stringify(
-        items.map((i) => ({
-          product_id: i.productId,
-          name: i.name,
-          price: i.price,
-          quantity: i.quantity,
-          image_url: i.image_url,
-        }))
-      ),
+      items: JSON.stringify(orderItems),
     },
   });
 

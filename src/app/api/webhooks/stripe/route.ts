@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { persistRouting } from "@/lib/fulfillment-store";
 import { env } from "@/lib/env";
 
 // Webhooks need the raw body + Node runtime; never cache.
@@ -47,17 +48,23 @@ export async function POST(req: Request) {
       } catch {
         items = [];
       }
-      await admin.from("orders").insert({
-        user_id: meta.user_id || null,
-        email: session.customer_email ?? session.customer_details?.email ?? "",
-        status: "paid",
-        total: session.amount_total ?? 0,
-        currency: (session.currency ?? "usd").toUpperCase(),
-        items,
-        shipping_name: meta.shipping_name || session.customer_details?.name || null,
-        shipping_address: meta.shipping_address || null,
-        stripe_session_id: session.id,
-      });
+      const { data: order } = await admin
+        .from("orders")
+        .insert({
+          user_id: meta.user_id || null,
+          email: session.customer_email ?? session.customer_details?.email ?? "",
+          status: "paid",
+          total: session.amount_total ?? 0,
+          currency: (session.currency ?? "usd").toUpperCase(),
+          items,
+          shipping_name: meta.shipping_name || session.customer_details?.name || null,
+          shipping_address: meta.shipping_address || null,
+          stripe_session_id: session.id,
+        })
+        .select()
+        .single();
+
+      if (order) await persistRouting(admin, order);
     }
   }
 

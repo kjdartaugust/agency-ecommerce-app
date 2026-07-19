@@ -106,6 +106,83 @@ export type OrderItem = {
   image_url: string;
 };
 
+/**
+ * How a supplier receives the orders we route to them. Only `api` is machine
+ * integrated; the rest are deliberately low-tech so a supplier with nothing but
+ * an inbox — or a phone — can still be a fulfilment destination.
+ */
+export type ChannelType = "api" | "email" | "sheet" | "manual";
+
+export type Supplier = {
+  id: string;
+  name: string;
+  channel_type: ChannelType;
+  /** Where routed orders are sent: an email, a webhook/sheet URL, or a phone number for `manual`. */
+  contact: string;
+  /** Quoted dispatch time, used to show an expected ship date before tracking exists. */
+  lead_time_days: number;
+  active: boolean;
+};
+
+/**
+ * Binds a product to a supplier that can fulfil it, at an agreed cost. A product
+ * may have several matches; routing picks the lowest `priority` that is active,
+ * so re-pointing a product at a new supplier never touches the storefront.
+ */
+export type Match = {
+  id: string;
+  product_id: string;
+  supplier_id: string;
+  /** What we pay the supplier per unit, in cents. Retail price lives on the product. */
+  cost: number;
+  /** Lower wins. Ties broken by insertion order. */
+  priority: number;
+};
+
+export type FulfillmentStatus =
+  | "pending"
+  | "sent"
+  | "shipped"
+  | "delivered"
+  | "failed";
+
+/**
+ * One supplier's share of an order. An order splits into as many fulfilments as
+ * there are distinct suppliers behind its items, so status is tracked per
+ * supplier rather than collapsed onto the order — half an order really can ship
+ * while the rest is still pending.
+ */
+export type Fulfillment = {
+  id: string;
+  order_id: string;
+  supplier_id: string;
+  items: FulfillmentItem[];
+  /** Sum of cost x quantity for this supplier's items, in cents. */
+  cost_total: number;
+  status: FulfillmentStatus;
+  tracking: string | null;
+  created_at: string;
+};
+
+export type FulfillmentItem = {
+  product_id: string;
+  name: string;
+  quantity: number;
+  /** Unit cost captured at routing time, so later price changes don't rewrite history. */
+  cost: number;
+};
+
+/**
+ * Items an order could not be routed for, because no active supplier matches
+ * them. Surfaced to the admin instead of being dropped — an unroutable item is
+ * an order nobody is packing.
+ */
+export type UnroutedItem = {
+  product_id: string;
+  name: string;
+  quantity: number;
+};
+
 export type Inquiry = {
   id: string;
   name: string;

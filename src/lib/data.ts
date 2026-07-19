@@ -2,19 +2,24 @@ import { createPublicClient as createClient } from "@/lib/supabase/public";
 import {
   blogPosts as seedPosts,
   categories as seedCategories,
+  matches as seedMatches,
   products as seedProducts,
   projects as seedProjects,
   reviews as seedReviews,
   servicePackages as seedServices,
+  suppliers as seedSuppliers,
   team as seedTeam,
 } from "@/lib/seed";
 import type {
   BlogPost,
   Category,
+  Fulfillment,
+  Match,
   Product,
   Project,
   Review,
   ServicePackage,
+  Supplier,
   TeamMember,
 } from "@/lib/types";
 
@@ -154,4 +159,44 @@ export async function getBlogPost(slug: string): Promise<BlogPost | null> {
     return (data as BlogPost) ?? null;
   }
   return seedPosts.find((p) => p.slug === slug) ?? null;
+}
+
+// ---------- Fulfilment network ----------
+
+export async function getSuppliers(): Promise<Supplier[]> {
+  const supabase = createClient();
+  if (supabase) {
+    const { data } = await supabase.from("suppliers").select("*").order("name");
+    return (data as Supplier[]) ?? [];
+  }
+  return seedSuppliers;
+}
+
+export async function getMatches(): Promise<Match[]> {
+  const supabase = createClient();
+  if (supabase) {
+    const { data } = await supabase
+      .from("matches")
+      .select("*")
+      .order("priority");
+    return (data as Match[]) ?? [];
+  }
+  return seedMatches;
+}
+
+/**
+ * Fulfilments are only ever written by a routing pass, so with no backend
+ * configured there is nothing to read — the admin derives them from seeded
+ * demo orders instead of persisting any.
+ */
+export async function getFulfillments(orderId?: string): Promise<Fulfillment[]> {
+  const supabase = createClient();
+  if (!supabase) return [];
+
+  const query = supabase.from("fulfillments").select("*");
+  const { data } = orderId
+    ? await query.eq("order_id", orderId)
+    : await query.order("created_at", { ascending: false });
+
+  return (data as Fulfillment[]) ?? [];
 }

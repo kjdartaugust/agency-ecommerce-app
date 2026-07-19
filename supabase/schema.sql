@@ -113,6 +113,50 @@ create table if not exists orders (
   created_at timestamptz not null default now()
 );
 
+-- ---------- Fulfilment network ----------
+-- Who can ship what, at what cost. Kept separate from the catalog so a supplier
+-- can be swapped or deactivated without touching products or orders.
+
+create table if not exists suppliers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  -- 'api' is machine-integrated; the rest are human channels so a supplier with
+  -- no software can still receive orders.
+  channel_type text not null default 'manual' check (channel_type in ('api','email','sheet','manual')),
+  contact text not null,
+  lead_time_days integer not null default 3,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists matches (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references products on delete cascade,
+  supplier_id uuid not null references suppliers on delete cascade,
+  cost integer not null,
+  -- Lower wins during routing. Not cost-based: lead time and reliability are
+  -- expressed here, not inferred from price.
+  priority integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (product_id, supplier_id)
+);
+
+create table if not exists fulfillments (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders on delete cascade,
+  supplier_id uuid not null references suppliers on delete restrict,
+  -- Line items with unit cost snapshotted at routing time, so renegotiating a
+  -- supplier price never restates margin on past orders.
+  items jsonb not null,
+  cost_total integer not null,
+  status text not null default 'pending' check (status in ('pending','sent','shipped','delivered','failed')),
+  tracking text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists fulfillments_order_id_idx on fulfillments (order_id);
+create index if not exists matches_product_id_idx on matches (product_id);
+
 create table if not exists inquiries (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -157,6 +201,9 @@ alter table service_packages enable row level security;
 alter table blog_posts enable row level security;
 alter table orders enable row level security;
 alter table inquiries enable row level security;
+alter table suppliers enable row level security;
+alter table matches enable row level security;
+alter table fulfillments enable row level security;
 
 -- Policies are dropped first so this file is safe to re-run (Postgres has no
 -- "create policy if not exists").
@@ -190,6 +237,16 @@ drop policy if exists "admin write" on service_packages;
 create policy "admin write" on service_packages for all using (is_admin()) with check (is_admin());
 drop policy if exists "admin write" on blog_posts;
 create policy "admin write" on blog_posts for all using (is_admin()) with check (is_admin());
+
+-- Fulfilment network: admin-only, with no public read policy at all. Supplier
+-- costs are the margin — leaking them through the anon key would publish exactly
+-- what the business pays for every product it sells.
+drop policy if exists "admin all" on suppliers;
+create policy "admin all" on suppliers for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin all" on matches;
+create policy "admin all" on matches for all using (is_admin()) with check (is_admin());
+drop policy if exists "admin all" on fulfillments;
+create policy "admin all" on fulfillments for all using (is_admin()) with check (is_admin());
 
 -- Reviews: any authenticated user can write their own
 drop policy if exists "auth insert review" on reviews;

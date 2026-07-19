@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LayoutDashboard, Package, ShoppingCart, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Truck, ArrowLeft } from "lucide-react";
 import { getAdminContext } from "@/lib/auth";
 
 // Admin reads per-request auth (cookies) — never statically generate.
@@ -10,6 +10,7 @@ const nav = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/products", label: "Products", icon: Package },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
+  { href: "/admin/suppliers", label: "Suppliers", icon: Truck },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -1,10 +1,13 @@
 import type {
   BlogPost,
   Category,
+  Match,
+  Order,
   Product,
   Project,
   Review,
   ServicePackage,
+  Supplier,
   TeamMember,
 } from "@/lib/types";
 
@@ -188,5 +191,89 @@ export const blogPosts: BlogPost[] = [
     excerpt: "Cart abandonment is mostly a design problem. Six patterns that recover revenue.",
     content: "Cart abandonment is mostly a design problem.\n\nMost drop-off happens for boring reasons: surprise costs, forced account creation, and slow forms. We rebuilt Vela's checkout around guest-first flows, inline validation, and Stripe's prebuilt elements.\n\nThe result was a 23% lift in completed orders.",
     cover_url: img("photo-1556742502-ec7c0e9f34b1", 1200, 700), author: "Sofia Marenco", tag: "Design", read_minutes: 5, published_at: "2026-04-09T00:00:00Z",
+  },
+];
+
+// ---------- Fulfilment network ----------
+// Retail prices live on the products above; `cost` on each match is what we pay
+// the supplier, so margin is derived rather than stored.
+
+export const suppliers: Supplier[] = [
+  {
+    id: "s1", name: "Northwind Supply Co.", channel_type: "api",
+    contact: "https://api.northwind-supply.example/orders",
+    lead_time_days: 2, active: true,
+  },
+  {
+    id: "s2", name: "Kestrel Furniture Works", channel_type: "email",
+    contact: "orders@kestrelfurniture.example",
+    lead_time_days: 10, active: true,
+  },
+  {
+    id: "s3", name: "Atelier Bergen", channel_type: "sheet",
+    contact: "https://sheets.example/atelier-bergen-fulfilment",
+    lead_time_days: 5, active: true,
+  },
+  {
+    id: "s4", name: "Makola Trading", channel_type: "manual",
+    contact: "+233 24 000 0000",
+    lead_time_days: 3, active: true,
+  },
+];
+
+// p8 (Field Leather Organizer) is intentionally unmatched so the admin surfaces
+// the unroutable-item case instead of it only appearing in production.
+export const matches: Match[] = [
+  { id: "m1", product_id: "p1", supplier_id: "s1", cost: 9450, priority: 0 },
+  // Second source for the same product: if Northwind is deactivated, routing
+  // falls through to Atelier Bergen with no storefront change.
+  { id: "m2", product_id: "p1", supplier_id: "s3", cost: 10200, priority: 1 },
+  { id: "m3", product_id: "p2", supplier_id: "s1", cost: 19740, priority: 0 },
+  { id: "m4", product_id: "p3", supplier_id: "s2", cost: 41500, priority: 0 },
+  { id: "m5", product_id: "p4", supplier_id: "s1", cost: 3900, priority: 0 },
+  { id: "m6", product_id: "p5", supplier_id: "s1", cost: 12800, priority: 0 },
+  { id: "m7", product_id: "p6", supplier_id: "s3", cost: 16400, priority: 0 },
+  { id: "m8", product_id: "p7", supplier_id: "s4", cost: 28000, priority: 0 },
+];
+
+/**
+ * Demo orders. Shared by the admin overview and orders pages so that, with no
+ * backend configured, both compute revenue and margin from the same set —
+ * otherwise the dashboard reads zero while the orders list shows activity.
+ *
+ * p8 on the second order has no supplier match on purpose: it is what makes the
+ * unroutable-item path visible in the demo.
+ */
+export const demoOrders: Order[] = [
+  {
+    id: "demo-1001", user_id: null, email: "ada@example.com", status: "paid",
+    total: 41800, currency: "USD",
+    items: [
+      { product_id: "p1", name: "Aperture Desk Lamp", price: 18900, quantity: 1, image_url: "" },
+      { product_id: "p5", name: "Aria Mechanical Keyboard", price: 21900, quantity: 1, image_url: "" },
+    ],
+    shipping_name: "Ada Lovelace", shipping_address: "12 Analytical St, London",
+    stripe_session_id: null, created_at: "2026-06-18T10:00:00Z",
+  },
+  {
+    id: "demo-1002", user_id: null, email: "grace@example.com", status: "paid",
+    total: 74800, currency: "USD",
+    items: [
+      { product_id: "p3", name: "Linnea Oak Desk", price: 64900, quantity: 1, image_url: "" },
+      { product_id: "p8", name: "Field Leather Organizer", price: 9900, quantity: 1, image_url: "" },
+    ],
+    shipping_name: "Grace Hopper", shipping_address: "1 Navy Yard, Washington",
+    stripe_session_id: null, created_at: "2026-06-12T14:30:00Z",
+  },
+  {
+    id: "demo-1003", user_id: null, email: "katherine@example.com", status: "fulfilled",
+    total: 105700, currency: "USD",
+    items: [
+      { product_id: "p2", name: "Monarch Headphones", price: 32900, quantity: 1, image_url: "" },
+      { product_id: "p7", name: "Cirrus Bookshelf Speakers", price: 44900, quantity: 1, image_url: "" },
+      { product_id: "p6", name: "Halo Floor Light", price: 27900, quantity: 1, image_url: "" },
+    ],
+    shipping_name: "Katherine Johnson", shipping_address: "8 Langley Rd, Hampton",
+    stripe_session_id: null, created_at: "2026-06-02T09:15:00Z",
   },
 ];

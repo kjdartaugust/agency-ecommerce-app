@@ -58,3 +58,70 @@ export async function updateOrderStatus(formData: FormData) {
   if (admin) await admin.from("orders").update({ status }).eq("id", id);
   revalidatePath("/admin/orders");
 }
+
+// ---------- Fulfilment network ----------
+
+export async function updateFulfillment(formData: FormData) {
+  const admin = await guard();
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status"));
+  const tracking = String(formData.get("tracking") ?? "").trim();
+
+  if (admin) {
+    await admin
+      .from("fulfillments")
+      // Empty tracking is stored as null, not "", so "has tracking" stays a
+      // simple null check everywhere downstream.
+      .update({ status, tracking: tracking || null })
+      .eq("id", id);
+  }
+  revalidatePath("/admin/orders");
+}
+
+export async function saveSupplier(formData: FormData) {
+  const admin = await guard();
+  const id = String(formData.get("id") ?? "");
+  const row = {
+    name: String(formData.get("name")),
+    channel_type: String(formData.get("channel_type")),
+    contact: String(formData.get("contact")),
+    lead_time_days: Number(formData.get("lead_time_days")) || 3,
+    active: formData.get("active") === "on",
+  };
+
+  if (admin) {
+    if (id) await admin.from("suppliers").update(row).eq("id", id);
+    else await admin.from("suppliers").insert(row);
+  }
+  revalidatePath("/admin/suppliers");
+  revalidatePath("/admin/orders");
+}
+
+/**
+ * Points a product at a supplier at an agreed cost. Upserted on
+ * (product_id, supplier_id) so re-submitting the same pair edits the existing
+ * match instead of creating a duplicate source for one product.
+ */
+export async function saveMatch(formData: FormData) {
+  const admin = await guard();
+  const row = {
+    product_id: String(formData.get("product_id")),
+    supplier_id: String(formData.get("supplier_id")),
+    // Costs are entered in whole currency units but stored as cents, matching
+    // product prices.
+    cost: Math.round(Number(formData.get("cost")) * 100) || 0,
+    priority: Number(formData.get("priority")) || 0,
+  };
+
+  if (admin) {
+    await admin.from("matches").upsert(row, { onConflict: "product_id,supplier_id" });
+  }
+  revalidatePath("/admin/suppliers");
+}
+
+export async function deleteMatch(formData: FormData) {
+  const admin = await guard();
+  const id = String(formData.get("id"));
+  if (admin) await admin.from("matches").delete().eq("id", id);
+  revalidatePath("/admin/suppliers");
+}
