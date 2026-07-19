@@ -5,13 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev      # local dev server (http://localhost:3000)
-npm run build    # production build (run before deploy to catch type errors)
-npm run start    # serve the production build
-npm run lint     # next/eslint
+npm run dev        # local dev server (http://localhost:3000)
+npm run build      # production build (run before deploy to catch type errors)
+npm run start      # serve the production build
+npm run lint       # next/eslint
+npm run test       # vitest, single run
+npm run test:watch # vitest, watch mode
 ```
 
-No test runner is configured. Env vars are documented in `.env.example`; copy to `.env.local`.
+Vitest covers pure domain logic only (`src/lib/*.test.ts`) — no component or
+DOM testing is set up. Env vars are documented in `.env.example`; copy to
+`.env.local`.
 
 ## Architecture
 
@@ -25,6 +29,8 @@ Next.js 14 **App Router** + TypeScript, Tailwind (CSS-variable theming, class-ba
 **Supabase clients** follow the `@supabase/ssr` split: `client.ts` (browser components), `server.ts` (server components/route handlers, cookie-based), `admin.ts` (service-role, server-only — webhooks/admin mutations).
 
 **E-commerce flow:** cart state is client-side (`zustand`, persisted to localStorage) in `src/lib/store.ts`. Checkout posts the cart to a route handler that creates a Stripe Checkout Session; the Stripe webhook (service-role client) writes the order. Orders/reviews/inquiries live in Supabase with RLS.
+
+**Order routing:** after an order is paid it is split into one *fulfilment* per supplier. A `match` binds a product to a supplier at an agreed unit cost; routing picks the lowest `priority` among active suppliers, so a supplier can be re-pointed or paused without touching the catalogue. `src/lib/fulfillment.ts` is pure (decides the routing, persists nothing) and `fulfillment-store.ts` is the only writer — both the simulated and Stripe checkout paths call it so demo and real orders land identically. Margin is always *derived* from routing, never stored on the order. Items with no active supplier are surfaced as `unrouted` rather than dropped. Supplier costs are admin-only in RLS with no public read policy, since costs are the margin.
 
 **Database:** schema, RLS policies, and seed SQL live in `supabase/` and mirror the types in `src/lib/types.ts`. Keep types, `seed.ts`, and the SQL in sync when changing the data model.
 
