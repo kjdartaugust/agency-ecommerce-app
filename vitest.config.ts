@@ -7,5 +7,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Live provider round-trips are opt-in via `npm run test:live`; the default
+    // run stays offline and deterministic.
+    exclude: ["**/node_modules/**", "**/*.integration.test.ts"],
   },
 });
