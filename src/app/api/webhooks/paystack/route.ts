@@ -5,5 +5,5 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export function POST(req: Request) {
-  return handleProviderWebhook("stripe", req);
+  return handleProviderWebhook("paystack", req);
 }

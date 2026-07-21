@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { persistRouting } from "@/lib/fulfillment-store";
+import { resolveProvider } from "@/lib/payments";
 import { env } from "@/lib/env";
 
 const itemSchema = z.object({
@@ -19,7 +19,15 @@ const schema = z.object({
   email: z.string().email(),
   shipping_name: z.string().min(1),
   shipping_address: z.string().min(1),
+  // Optional: the buyer's chosen provider. Ignored if not configured.
+  provider: z.string().optional(),
 });
+
+// Shipping policy, authoritative on the server. The client shows the same
+// numbers, but the amount charged must be computed here so a tampered or stale
+// client can never change what the customer pays.
+const SHIPPING_THRESHOLD = 10000;
+const SHIPPING_FEE = 900;
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -34,13 +42,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid input" }, { status: 422 });
   }
 
-  const { items, email, shipping_name, shipping_address } = parsed.data;
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const { items, email, shipping_name, shipping_address, provider: requested } = parsed.data;
 
-  // The cart posts `productId`, but a stored order line is an `OrderItem` with
-  // `product_id`. Normalize once here so the demo and Stripe paths persist the
-  // identical shape — they previously diverged, leaving demo orders with a
-  // `productId` key that nothing downstream reads.
+  // The cart posts `productId`; a stored order line is an `OrderItem` with
+  // `product_id`. Normalize once so every downstream reader sees one shape.
   const orderItems = items.map((i) => ({
     product_id: i.productId,
     name: i.name,
@@ -49,65 +54,74 @@ export async function POST(req: Request) {
     image_url: i.image_url,
   }));
 
+  const itemsTotal = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const shipping = itemsTotal >= SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+  // Charge items + shipping. Previously the server charged items only, so every
+  // order under the free-shipping threshold silently undercharged the fee.
+  const total = itemsTotal + shipping;
+
   const supabase = createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const admin = createAdminClient();
+  const provider = resolveProvider(requested);
 
-  // --- Demo mode: no Stripe configured -> create order directly, skip payment.
-  if (!stripe) {
-    const admin = createAdminClient();
-    let orderId = crypto.randomUUID();
-    if (admin) {
-      const { data } = await admin
-        .from("orders")
-        .insert({
-          user_id: user?.id ?? null,
-          email,
-          status: "paid",
-          total,
-          items: orderItems,
-          shipping_name,
-          shipping_address,
-        })
-        .select()
-        .single();
-      if (data) {
-        orderId = data.id;
-        // Demo orders route exactly like paid ones, so the admin fulfilment
-        // view is populated without Stripe configured.
-        await persistRouting(admin, data);
-      }
+  // Order-first: the order exists before payment. With a live provider it starts
+  // `pending` and its webhook flips it to paid; without one (demo mode) it is
+  // paid immediately. Correlation between provider and order is the order id.
+  let orderId = crypto.randomUUID();
+  let order = null;
+  if (admin) {
+    const { data } = await admin
+      .from("orders")
+      .insert({
+        user_id: user?.id ?? null,
+        email,
+        status: provider ? "pending" : "paid",
+        total,
+        currency: env.paymentCurrency,
+        items: orderItems,
+        shipping_name,
+        shipping_address,
+      })
+      .select()
+      .single();
+    if (data) {
+      order = data;
+      orderId = data.id;
     }
+  }
+
+  // Demo mode: no provider configured. Treat as paid and route immediately, so
+  // the whole fulfilment flow is exercisable with zero payment keys.
+  if (!provider) {
+    if (admin && order) await persistRouting(admin, order);
     return NextResponse.json({
       url: `${env.siteUrl}/checkout/success?demo=1&order=${orderId}`,
       demo: true,
     });
   }
 
-  // --- Stripe Checkout (test mode) ---
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    customer_email: email,
-    line_items: items.map((i) => ({
-      quantity: i.quantity,
-      price_data: {
-        currency: "usd",
-        unit_amount: i.price,
-        product_data: {
-          name: i.name,
-          images: i.image_url.startsWith("http") ? [i.image_url] : undefined,
-        },
-      },
-    })),
-    shipping_address_collection: { allowed_countries: ["US", "GB", "GH", "CA", "PT"] },
-    success_url: `${env.siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.siteUrl}/checkout?cancelled=1`,
-    metadata: {
-      user_id: user?.id ?? "",
-      shipping_name,
-      shipping_address,
-      items: JSON.stringify(orderItems),
-    },
-  });
-
-  return NextResponse.json({ url: session.url });
+  try {
+    const session = await provider.createCheckout({
+      orderId,
+      email,
+      amount: total,
+      currency: env.paymentCurrency,
+      items: orderItems,
+      shippingName: shipping_name,
+      shippingAddress: shipping_address,
+      successUrl: `${env.siteUrl}/checkout/success?order=${orderId}`,
+      cancelUrl: `${env.siteUrl}/checkout?cancelled=1`,
+      userId: user?.id ?? null,
+    });
+    return NextResponse.json({ url: session.url, provider: provider.id });
+  } catch (err) {
+    // The pending order stays in the DB as an abandoned-payment record rather
+    // than being deleted, so it can be reconciled or retried.
+    console.error("[checkout] provider init failed:", err);
+    return NextResponse.json(
+      { error: "Could not start payment. Please try again." },
+      { status: 502 },
+    );
+  }
 }

@@ -14,12 +14,29 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 const SHIPPING_THRESHOLD = 10000;
 const SHIPPING_FEE = 900;
 
+type PublicProvider = { id: string; label: string; methods: string };
+
 export default function CheckoutPage() {
   const { items, subtotal, clear } = useCart();
   const params = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [providers, setProviders] = useState<PublicProvider[]>([]);
+  const [selected, setSelected] = useState<string>("");
   useEffect(() => setMounted(true), []);
+
+  // Which payment providers are configured is a server-side fact (it depends on
+  // secret keys), so it is fetched rather than bundled. An empty list means the
+  // store runs in simulated-checkout mode.
+  useEffect(() => {
+    fetch("/api/payments/providers")
+      .then((r) => r.json())
+      .then((d: { providers: PublicProvider[] }) => {
+        setProviders(d.providers);
+        if (d.providers[0]) setSelected(d.providers[0].id);
+      })
+      .catch(() => setProviders([]));
+  }, []);
 
   useEffect(() => {
     if (params.get("cancelled")) toast.error("Checkout cancelled — your cart is saved.");
@@ -48,6 +65,7 @@ export default function CheckoutPage() {
           email: String(form.get("email")),
           shipping_name: String(form.get("shipping_name")),
           shipping_address: String(form.get("shipping_address")),
+          provider: selected || undefined,
         }),
       });
       const data = await res.json();
@@ -98,12 +116,46 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {providers.length > 0 && (
+            <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+              <h2 className="font-display text-lg font-semibold">Payment method</h2>
+              <div className="mt-5 space-y-3">
+                {providers.map((p) => (
+                  <label
+                    key={p.id}
+                    className={[
+                      "flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors",
+                      selected === p.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-secondary/50",
+                    ].join(" ")}
+                  >
+                    <input
+                      type="radio"
+                      name="provider"
+                      value={p.id}
+                      checked={selected === p.id}
+                      onChange={() => setSelected(p.id)}
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium">{p.label}</span>
+                      <span className="block text-xs text-muted-foreground">{p.methods}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
             <Lock className="h-4 w-4" />
             {loading ? "Redirecting…" : `Pay ${formatPrice(total)}`}
           </Button>
           <p className="text-center text-xs text-muted-foreground">
-            Payments are processed securely by Stripe (test mode). Use card 4242 4242 4242 4242.
+            {providers.length === 0
+              ? "Demo mode — checkout is simulated, no payment is taken."
+              : "You'll be redirected to a secure payment page to complete your order."}
           </p>
         </form>
 
